@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>宝宝一周午晚餐菜单</title>
+  <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; color: #20332b; background: #f5f7f0; }
+    * { box-sizing: border-box; }
+    body { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { margin: 0 0 8px; font-size: 29px; }
+    h2 { margin: 0 0 18px; font-size: 20px; }
+    p { line-height: 1.6; }
+    .intro { margin: 0 0 24px; color: #607267; }
+    .card { background: #fff; border: 1px solid #e2e9dc; border-radius: 18px; padding: 24px; margin: 18px 0; box-shadow: 0 8px 30px #2948310b; }
+    .inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    label { display: block; font-weight: 700; margin-bottom: 7px; }
+    .hint { display: block; color: #68796d; font-size: 13px; line-height: 1.5; min-height: 40px; }
+    textarea { width: 100%; min-height: 150px; resize: vertical; border: 1px solid #cddbcc; border-radius: 11px; padding: 12px; font: inherit; line-height: 1.7; color: inherit; background: #fcfdfb; }
+    textarea:focus, input:focus { outline: 2px solid #6a9d72; outline-offset: 1px; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 20px; }
+    button { border: 0; border-radius: 11px; padding: 12px 20px; background: #267448; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+    button.secondary { background: #e9f2e9; color: #24583a; }
+    button:hover { filter: brightness(.95); }
+    input[type=date] { border: 1px solid #cddbcc; border-radius: 9px; padding: 10px; font: inherit; color: inherit; }
+    .message { margin: 15px 0 0; color: #9a3b29; white-space: pre-line; }
+    .message:empty { display: none; }
+    .summary { color: #607267; margin: 0 0 16px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    th, td { padding: 11px 12px; text-align: left; border-bottom: 1px solid #e7eee5; }
+    th { background: #ecf5eb; color: #365842; }
+    tbody tr:nth-child(4n+3), tbody tr:nth-child(4n+4) { background: #f8faf6; }
+    tbody tr:nth-child(even) td { border-bottom: 2px solid #d1e1d1; }
+    td:first-child { font-weight: 700; white-space: nowrap; }
+    td[contenteditable] { cursor: text; min-width: 80px; }
+    td[contenteditable]:hover { background: #f0f8ee; }
+    td[contenteditable]:focus { outline: 2px solid #6a9d72; outline-offset: -2px; background: #fff; }
+    td[contenteditable]:empty::before { content: "点击填写"; color: #a0aca1; }
+    .notes { font-size: 13px; color: #68796d; }
+    @media (max-width: 650px) { body { padding: 20px 12px 40px; } .card { padding: 18px; } .inputs { grid-template-columns: 1fr; } }
+    @media print { body { max-width: none; padding: 0; background: white; } .entry, .actions, .notes, .edit-hint { display: none; } .card { border: 0; box-shadow: none; padding: 0; } td[contenteditable]:empty::before { content: none; } }
+  </style>
+</head>
+<body>
+  <h1>宝宝一周午晚餐菜单</h1>
+    <p class="intro">输入这周备好的食材，生成 7 天、每天午餐和晚餐的搭配。食材和菜单只在本机浏览器中处理并保存。</p>
+
+  <section class="card entry">
+    <h2>输入食材</h2>
+    <div class="inputs">
+      <div><label for="staples">主食</label><span class="hint">每行一种，至少 1 种；只填米饭时，每餐都安排米饭。</span><textarea id="staples">米饭</textarea></div>
+      <div><label for="greens">绿叶菜</label><span class="hint">每行一种，至少 2 种。西蓝花等可按你的习惯放在这里。</span><textarea id="greens">西蓝花
+上海青
+菠菜
+奶白菜
+包菜</textarea></div>
+      <div><label for="roots">根茎类</label><span class="hint">每餐 1 种，每行一种，至少 2 种。</span><textarea id="roots">土豆
+红薯
+胡萝卜
+山药
+南瓜
+芋头</textarea></div>
+      <div><label for="proteins">荤菜</label><span class="hint">每行一种。可在名称后写“:数字”调整出现频率，例如“鳕鱼:3”“鸡肉:1”。默认鳕鱼、虾、牛肉偏多，鸡肉偏少。</span><textarea id="proteins">鳕鱼
+虾
+牛肉
+鸡肉
+猪肉</textarea></div>
+      <div><label for="extras">其他蔬菜或配菜（可选）</label><span class="hint">每行一种；可写“番茄:牛肉/鳕鱼”“香菇:鸡肉”指定搭配。不写冒号则可灵活搭配，配菜不必每餐都有。</span><textarea id="extras">番茄:牛肉/鳕鱼
+香菇:鸡肉</textarea></div>
+    </div>
+    <div class="controls">
+      <label for="start" style="margin:0">第一天</label><input id="start" type="date">
+      <button id="generate" type="button">生成一周菜单</button>
+    </div>
+    <p id="message" class="message" role="alert"></p>
+  </section>
+
+  <section id="result" class="card" hidden>
+    <h2>一周菜单</h2>
+    <p class="edit-hint">点击表格中的食材即可修改，修改后可直接复制或打印。</p>
+    <p id="summary" class="summary"></p>
+    <div class="table-wrap"><table><thead><tr><th>日期</th><th>餐次</th><th>主食</th><th>绿叶菜</th><th>根茎类</th><th>荤菜</th><th>配菜</th></tr></thead><tbody id="menu"></tbody></table></div>
+    <div class="controls actions"><button id="regenerate" class="secondary" type="button">换一份搭配</button><button id="copy" class="secondary" type="button">复制菜单</button><button id="print" class="secondary" type="button">打印</button></div>
+    <p class="notes">自动生成时，除只有一种的主食外，同一天两餐的食材不重复、相邻两天尽量错开；配菜按荤菜搭配且每天最多安排一餐。手动修改可自由调整。请按宝宝的月龄、过敏情况和进食能力自行确认食材与做法。</p>
+  </section>
+
+  <script>
+    "use strict";
+    const DAYS = 7;
+    const MEALS = 14;
+    const localToday = new Date();
+    localToday.setMinutes(localToday.getMinutes() - localToday.getTimezoneOffset());
+    document.getElementById("start").value = localToday.toISOString().slice(0, 10);
+
+    function parseList(text, category) {
+      const entries = [];
+      const seen = new Set();
+      for (const line of text.split(category === "extras" ? /\n+/ : /[,，、\n]+/)) {
+        const raw = line.trim();
+        if (!raw) continue;
+        let name = raw;
+        let weight;
+        let partners = null;
+        if (category === "proteins") {
+          const match = raw.match(/^(.+?)\s*[:：]\s*(\d+(?:\.\d+)?)$/);
+          if (match) { name = match[1].trim(); weight = Number(match[2]); }
+          if (raw.includes(":") || raw.includes("：")) {
+            if (!match || !Number.isFinite(weight) || weight <= 0 || weight > 20) throw new Error("荤菜权重请写成“鳕鱼:3”，数字需大于 0 且不超过 20。");
+          }
+        }
+        if (category === "extras" && /[:：]/.test(raw)) {
+          const match = raw.match(/^(.+?)\s*[:：]\s*(.+)$/);
+          if (!match || /[:：]/.test(match[2])) throw new Error("配菜搭配请写成“番茄:牛肉/鳕鱼”，每行一种配菜。");
+          name = match[1].trim();
+          partners = match[2].split(/[/／、,，]/).map(value => value.trim());
+          if (partners.some(value => !value)) throw new Error("配菜搭配中不能有空的荤菜名称。");
+        }
+        if (!name) throw new Error("食材名称不能为空。");
+        if (seen.has(name)) continue;
+        seen.add(name);
+        const preferred = /鳕鱼|虾|牛肉/.test(name) ? 3 : /鸡肉|鸡胸|鸡腿/.test(name) ? 1 : 2;
+        entries.push({ name, weight: weight ?? (category === "proteins" ? preferred : 1), partners });
+      }
+      return entries;
+    }
+
+    function readInputs() {
+      const data = {};
+      const labels = { staples: "主食", greens: "绿叶菜", roots: "根茎类", proteins: "荤菜", extras: "配菜" };
+      const owner = new Map();
+      for (const key of Object.keys(labels)) {
+        data[key] = parseList(document.getElementById(key).value, key);
+        const minimum = key === "extras" ? 0 : key === "staples" ? 1 : 2;
+        if (data[key].length < minimum) throw new Error(`${labels[key]}至少输入 ${minimum} 种。`);
+        for (const item of data[key]) {
+          if (owner.has(item.name)) throw new Error(`“${item.name}”同时出现在${owner.get(item.name)}和${labels[key]}中，请只放在一个类别。`);
+          owner.set(item.name, labels[key]);
+        }
+      }
+      return data;
+    }
+
+    // Give each available ingredient a place first when possible, then distribute
+    // remaining meals according to the selected protein weights.
+    function quotas(items) {
+      const counts = Array(items.length).fill(0);
+      const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+      if (items.length <= MEALS) counts.fill(1);
+      let remaining = MEALS - counts.reduce((sum, count) => sum + count, 0);
+      while (remaining-- > 0) {
+        const priorities = items.map((item, i) => counts[i] >= DAYS ? -Infinity : (MEALS * item.weight / totalWeight - counts[i]) + Math.random() * 0.3);
+        const max = Math.max(...priorities);
+        counts[priorities.indexOf(max)]++;
+      }
+      return counts;
+    }
+
+    function attemptSchedule(counts) {
+      const left = counts.slice();
+      const result = [];
+      for (let day = 0; day < DAYS; day++) {
+        const options = [];
+        const remainingDays = DAYS - day - 1;
+        for (let i = 0; i < left.length; i++) {
+          if (!left[i]) continue;
+          for (let j = i + 1; j < left.length; j++) {
+            if (!left[j]) continue;
+            const feasible = left.every((count, k) => count - (k === i || k === j ? 1 : 0) <= remainingDays);
+            if (!feasible) continue;
+            const previous = day ? [result[2 * day - 2], result[2 * day - 1]] : [];
+            const overlap = Number(previous.includes(i)) + Number(previous.includes(j));
+            const score = overlap * 100 - (left[i] + left[j]) * 2 + Math.random() * 65;
+            options.push({ i, j, score });
+          }
+        }
+        if (!options.length) return null;
+        options.sort((a, b) => a.score - b.score);
+        const { i, j } = options[0];
+        if (day && result[2 * day - 2] === j && result[2 * day - 2] !== i) result.push(i, j);
+        else if (day && result[2 * day - 2] === i && result[2 * day - 2] !== j) result.push(j, i);
+        else if (Math.random() < 0.5) result.push(i, j);
+        else result.push(j, i);
+        left[i]--;
+        left[j]--;
+      }
+      return result;
+    }
+
+    function scheduleScore(schedule) {
+      let score = 0;
+      const last = new Map();
+      for (let day = 0; day < DAYS; day++) {
+        const current = [schedule[2 * day], schedule[2 * day + 1]];
+        if (day) {
+          const previous = [schedule[2 * day - 2], schedule[2 * day - 1]];
+          score += current.filter(i => previous.includes(i)).length * 100;
+        }
+        for (let meal = 0; meal < 2; meal++) {
+          const index = 2 * day + meal;
+          const prior = last.get(schedule[index]);
+          if (prior !== undefined && index - prior < 5) score += 5 - (index - prior);
+          last.set(schedule[index], index);
+        }
+      }
+      return score;
+    }
+
+    function makeSchedule(items) {
+      if (items.length === 1) return Array(MEALS).fill(items[0].name);
+      const counts = quotas(items);
+      let best = null;
+      let bestScore = Infinity;
+      for (let trial = 0; trial < 3500; trial++) {
+        const candidate = attemptSchedule(counts);
+        if (!candidate) continue;
+        const score = scheduleScore(candidate);
+        if (score < bestScore) { best = candidate; bestScore = score; if (score === 0) break; }
+      }
+      if (!best) throw new Error("这组食材暂时无法排出每天不重复的菜单，请增加不同食材后重试。");
+      return best.map(index => items[index].name);
+    }
+
+    function makeMenu(data) {
+      const lists = {};
+      for (const [key, items] of Object.entries(data)) {
+        if (key !== "extras") lists[key] = makeSchedule(items);
+      }
+      const menu = Array.from({ length: MEALS }, (_, i) => ({ staples: lists.staples[i], greens: lists.greens[i], roots: lists.roots[i], proteins: lists.proteins[i], extras: "" }));
+      assignExtras(menu, data.extras);
+      return menu;
+    }
+
+    function extraMatchesProtein(extra, protein) {
+      if (!extra.partners) return true;
+      return extra.partners.some(partner => protein.includes(partner) || (partner === "鸡肉" && /鸡胸|鸡腿/.test(protein)));
+    }
+
+    function assignExtras(menu, extras) {
+      const used = new Map(extras.map(item => [item.name, 0]));
+      for (let day = 0; day < DAYS; day++) {
+        // 配菜是点缀：大约七成的日子安排一餐，每天最多一餐。
+        if (Math.random() >= 0.7) continue;
+        const choices = [];
+        for (let meal = 0; meal < 2; meal++) {
+          const index = 2 * day + meal;
+          for (const extra of extras) {
+            if (extraMatchesProtein(extra, menu[index].proteins)) {
+              choices.push({ index, name: extra.name, count: used.get(extra.name) });
+            }
+          }
+        }
+        if (!choices.length) continue;
+        const fewest = Math.min(...choices.map(choice => choice.count));
+        const candidates = choices.filter(choice => choice.count === fewest);
+        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+        menu[chosen.index].extras = chosen.name;
+        used.set(chosen.name, chosen.count + 1);
+      }
+    }
+
+    function dateLabel(start, day) {
+      const date = new Date(`${start}T12:00:00`);
+      date.setDate(date.getDate() + day);
+      return `${date.getMonth() + 1}月${date.getDate()}日`;
+    }
+
+    function render(menu, data, start, edited = false) {
+      const body = document.getElementById("menu");
+      body.replaceChildren();
+      const keys = ["staples", "greens", "roots", "proteins", "extras"];
+      for (let i = 0; i < menu.length; i++) {
+        const tr = document.createElement("tr");
+        const values = [i % 2 ? "" : dateLabel(start, Math.floor(i / 2)), i % 2 ? "晚餐" : "午餐", ...keys.map(key => menu[i][key])];
+        for (const [column, value] of values.entries()) {
+          const td = document.createElement("td");
+          td.textContent = value;
+          if (column >= 2) {
+            td.contentEditable = "plaintext-only";
+            td.dataset.meal = i;
+            td.dataset.key = keys[column - 2];
+            td.setAttribute("aria-label", `${dateLabel(start, Math.floor(i / 2))}${i % 2 ? "晚餐" : "午餐"}${["主食", "绿叶菜", "根茎类", "荤菜", "配菜"][column - 2]}`);
+          }
+          tr.append(td);
+        }
+        body.append(tr);
+      }
+      updateSummary(menu, data, edited);
+      document.getElementById("result").hidden = false;
+    }
+
+    function updateSummary(menu, data, edited) {
+      let overlaps = 0;
+      const keys = data.staples.length === 1 ? ["greens", "roots", "proteins", "extras"] : ["staples", "greens", "roots", "proteins", "extras"];
+      for (let day = 1; day < DAYS; day++) {
+        const previous = new Set(keys.flatMap(key => [menu[2 * day - 2][key], menu[2 * day - 1][key]]));
+        overlaps += keys.flatMap(key => [menu[2 * day][key], menu[2 * day + 1][key]]).filter(x => x && previous.has(x)).length;
+      }
+      const unused = Object.entries(data).flatMap(([key, items]) => items.filter(item => !menu.some(meal => meal[key] === item.name)).map(item => item.name));
+      document.getElementById("summary").textContent = `${edited ? "已手动修改；" : ""}共 14 餐；相邻两天重复食材 ${overlaps} 次。${unused.length ? `本周未排入：${unused.join("、")}。` : ""}`;
+    }
+
+    let currentMenu = null;
+    let currentData = null;
+    let currentStart = null;
+    let manuallyEdited = false;
+    const STORAGE_KEY = "baby-meal-planner-v1";
+
+    function saveState() {
+      const inputs = Object.fromEntries(["staples", "greens", "roots", "proteins", "extras"].map(key => [key, document.getElementById(key).value]));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ inputs, start: document.getElementById("start").value, menu: currentMenu, data: currentData, menuStart: currentStart, edited: manuallyEdited }));
+      } catch { document.getElementById("message").textContent = "本机保存不可用；关闭页面后修改可能丢失。"; }
+    }
+
+    function restoreState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (!saved || !saved.inputs) return;
+        for (const [key, value] of Object.entries(saved.inputs)) {
+          if (["staples", "greens", "roots", "proteins", "extras"].includes(key) && typeof value === "string") document.getElementById(key).value = value;
+        }
+        if (saved.start) document.getElementById("start").value = saved.start;
+        if (Array.isArray(saved.menu) && saved.menu.length === MEALS && saved.data && saved.menuStart) {
+          currentMenu = saved.menu;
+          currentData = saved.data;
+          currentStart = saved.menuStart;
+          manuallyEdited = Boolean(saved.edited);
+          render(currentMenu, currentData, currentStart, manuallyEdited);
+        }
+      } catch { /* 无效或不可用的本机存储不影响生成新菜单 */ }
+    }
+
+    function generate() {
+      const message = document.getElementById("message");
+      message.textContent = "";
+      try {
+        if (!document.getElementById("start").value) throw new Error("请选择第一天的日期。");
+        currentData = readInputs();
+        currentMenu = makeMenu(currentData);
+        currentStart = document.getElementById("start").value;
+        manuallyEdited = false;
+        render(currentMenu, currentData, currentStart);
+        saveState();
+      } catch (error) { document.getElementById("result").hidden = true; message.textContent = error.message; }
+    }
+    document.getElementById("generate").addEventListener("click", generate);
+    document.getElementById("regenerate").addEventListener("click", generate);
+    for (const key of ["staples", "greens", "roots", "proteins", "extras", "start"]) document.getElementById(key).addEventListener("input", saveState);
+    document.getElementById("menu").addEventListener("input", event => {
+      const cell = event.target.closest("td[data-key]");
+      if (!cell || !currentMenu) return;
+      currentMenu[Number(cell.dataset.meal)][cell.dataset.key] = cell.textContent.trim();
+      manuallyEdited = true;
+      updateSummary(currentMenu, currentData, manuallyEdited);
+      saveState();
+    });
+    document.getElementById("menu").addEventListener("keydown", event => {
+      if (event.key === "Enter" && event.target.closest("td[data-key]")) { event.preventDefault(); event.target.blur(); }
+    });
+    document.getElementById("print").addEventListener("click", () => window.print());
+    document.getElementById("copy").addEventListener("click", async () => {
+      if (!currentMenu) return;
+      const lines = currentMenu.map((meal, i) => `${dateLabel(currentStart, Math.floor(i / 2))} ${i % 2 ? "晚餐" : "午餐"}：${Object.values(meal).filter(Boolean).join("、")}`);
+      try { await navigator.clipboard.writeText(lines.join("\n")); document.getElementById("copy").textContent = "已复制"; setTimeout(() => document.getElementById("copy").textContent = "复制菜单", 1800); }
+      catch { document.getElementById("message").textContent = "复制失败；可直接选中表格内容复制。"; }
+    });
+    restoreState();
+  </script>
+</body>
+</html>
