@@ -64,18 +64,20 @@
 山药
 南瓜
 芋头</textarea></div>
-      <div><label for="proteins">荤菜</label><span class="hint">每行一种。牛肉块、牛肉饼按牛肉错开；鳕鱼、三文鱼按鱼类错开。可写“牛肉块@牛肉”指定类别，或在末尾写“:数字”调整频率。默认鱼、虾、牛肉偏多，鸡肉偏少。</span><textarea id="proteins">鳕鱼
+      <div><label for="proteins">蛋白质食材</label><span class="hint">每行一种。牛肉块、牛肉饼按牛肉错开；鳕鱼、三文鱼按鱼类错开。可写“牛肉块@牛肉”指定类别，或在末尾写“:数字”调整频率。默认鱼、虾、牛肉偏多，鸡肉偏少。</span><textarea id="proteins">鳕鱼
 三文鱼
 虾
 牛肉饼
 牛肉块
 鸡肉
-猪肉</textarea></div>
+猪肉
+豆腐</textarea></div>
       <div><label for="extras">其他蔬菜或配菜（可选）</label><span class="hint">每行一种；可写“番茄:牛肉/鳕鱼”“香菇:鸡肉”指定搭配。不写冒号则可灵活搭配，配菜不必每餐都有。</span><textarea id="extras">番茄:牛肉/鳕鱼
 香菇:鸡肉
 豌豆
 毛豆
-菜椒</textarea></div>
+菜椒
+茄子</textarea></div>
     </div>
     <h2 style="margin:24px 0 8px">接上周菜单（可选）</h2>
     <p class="hint" style="min-height:0;margin:0 0 12px">把第一天之前两天的午餐和晚餐食材写进来，用“、”或换行分开。生成时会优先避开前一天吃过的食材，并参考前两天；鳕鱼和三文鱼按鱼类、牛肉饼和牛肉块按牛肉计算。</p>
@@ -94,9 +96,9 @@
     <h2>一周菜单</h2>
     <p class="edit-hint">点击表格中的食材即可修改，修改后可直接复制或打印。</p>
     <p id="summary" class="summary"></p>
-    <div class="table-wrap"><table><thead><tr><th>日期</th><th>餐次</th><th>主食</th><th>绿叶菜</th><th>根茎类</th><th>荤菜</th><th>配菜</th></tr></thead><tbody id="menu"></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>日期</th><th>餐次</th><th>主食</th><th>绿叶菜</th><th>根茎类</th><th>蛋白质食材</th><th>配菜</th></tr></thead><tbody id="menu"></tbody></table></div>
     <div class="controls actions"><button id="regenerate" class="secondary" type="button">换一份搭配</button><button id="copy" class="secondary" type="button">复制菜单</button><button id="print" class="secondary" type="button">打印</button></div>
-    <p class="notes">自动生成时，除只有一种的主食外，同一天两餐的食材不重复、相邻两天尽量错开，也会参考填写的前两天菜单；同类荤菜按一种食材错开，配菜按荤菜搭配且每天最多安排一餐。手动修改可自由调整。请按宝宝的月龄、过敏情况和进食能力自行确认食材与做法。</p>
+    <p class="notes">自动生成时，除只有一种的主食外，同一天两餐的食材不重复、相邻两天尽量错开，也会参考填写的前两天菜单；同类鱼肉按一种食材错开，配菜按指定的蛋白质食材搭配且每天最多安排一餐。手动修改可自由调整。请按宝宝的月龄、过敏情况和进食能力自行确认食材与做法。</p>
   </section>
 
   <script>
@@ -114,6 +116,7 @@
       if (/牛肉|牛腩|牛排|牛里脊/.test(compact)) return "牛肉";
       if (/鸡肉|鸡胸|鸡腿|鸡翅/.test(compact)) return "鸡肉";
       if (/猪肉|猪排|猪里脊|五花肉/.test(compact)) return "猪肉";
+      if (/豆腐/.test(compact)) return "豆腐";
       return compact;
     }
 
@@ -131,10 +134,10 @@
           const match = raw.match(/^(.+?)\s*[:：]\s*(\d+(?:\.\d+)?)$/);
           if (match) { name = match[1].trim(); weight = Number(match[2]); }
           if (raw.includes(":") || raw.includes("：")) {
-            if (!match || !Number.isFinite(weight) || weight <= 0 || weight > 20) throw new Error("荤菜权重请写成“鳕鱼:3”，数字需大于 0 且不超过 20。");
+            if (!match || !Number.isFinite(weight) || weight <= 0 || weight > 20) throw new Error("蛋白质食材权重请写成“鳕鱼:3”，数字需大于 0 且不超过 20。");
           }
           const groupParts = name.split("@");
-          if (groupParts.length > 2 || (groupParts.length === 2 && groupParts.some(part => !part.trim()))) throw new Error("荤菜类别请写成“牛肉块@牛肉”，名称和类别都不能为空。");
+          if (groupParts.length > 2 || (groupParts.length === 2 && groupParts.some(part => !part.trim()))) throw new Error("蛋白质食材类别请写成“牛肉块@牛肉”，名称和类别都不能为空。");
           name = groupParts[0].trim();
           group = groupParts[1]?.trim() || proteinGroup(name);
         }
@@ -156,7 +159,7 @@
 
     function readInputs() {
       const data = {};
-      const labels = { staples: "主食", greens: "绿叶菜", roots: "根茎类", proteins: "荤菜", extras: "配菜" };
+      const labels = { staples: "主食", greens: "绿叶菜", roots: "根茎类", proteins: "蛋白质食材", extras: "配菜" };
       const owner = new Map();
       for (const key of Object.keys(labels)) {
         data[key] = parseList(document.getElementById(key).value, key);
@@ -180,7 +183,7 @@
           if (key === "proteins") {
             for (const token of tokens) {
               const group = proteinGroup(token);
-              if (["鱼", "虾", "牛肉", "鸡肉", "猪肉"].includes(group)) names.add(group);
+              if (["鱼", "虾", "牛肉", "鸡肉", "猪肉", "豆腐"].includes(group)) names.add(group);
             }
           }
           return names;
@@ -284,7 +287,7 @@
         family.weight = Math.max(family.weight, item.weight);
         family.variants.push({ ...item, used: 0 });
       }
-      if (families.size < 2) throw new Error("荤菜至少需要 2 类不同食材；同一种肉的不同做法只算一类。");
+      if (families.size < 2) throw new Error("蛋白质食材至少需要 2 类；同一种肉的不同做法只算一类。");
       const familyNames = makeSchedule([...families.values()], history);
       return familyNames.map(name => {
         const variants = families.get(name).variants;
@@ -362,7 +365,7 @@
             td.contentEditable = "plaintext-only";
             td.dataset.meal = i;
             td.dataset.key = keys[column - 2];
-            td.setAttribute("aria-label", `${dateLabel(start, Math.floor(i / 2))}${i % 2 ? "晚餐" : "午餐"}${["主食", "绿叶菜", "根茎类", "荤菜", "配菜"][column - 2]}`);
+            td.setAttribute("aria-label", `${dateLabel(start, Math.floor(i / 2))}${i % 2 ? "晚餐" : "午餐"}${["主食", "绿叶菜", "根茎类", "蛋白质食材", "配菜"][column - 2]}`);
           }
           tr.append(td);
         }
@@ -409,9 +412,13 @@
           extras: "番茄:牛肉/鳕鱼\n香菇:鸡肉",
           proteins: "鳕鱼\n虾\n牛肉\n鸡肉\n猪肉"
         };
+        const recentDefaults = {
+          proteins: "鳕鱼\n三文鱼\n虾\n牛肉饼\n牛肉块\n鸡肉\n猪肉",
+          extras: "番茄:牛肉/鳕鱼\n香菇:鸡肉\n豌豆\n毛豆\n菜椒"
+        };
         for (const [key, value] of Object.entries(saved.inputs)) {
           if (!["staples", "greens", "roots", "proteins", "extras", "prev2", "prev1"].includes(key) || typeof value !== "string") continue;
-          if (previousDefaults[key] && value.replace(/\r\n/g, "\n").trim() === previousDefaults[key]) {
+          if ((previousDefaults[key] && value.replace(/\r\n/g, "\n").trim() === previousDefaults[key]) || (recentDefaults[key] && value.replace(/\r\n/g, "\n").trim() === recentDefaults[key])) {
             document.getElementById(key).value = document.getElementById(key).defaultValue;
             updatedDefault = true;
           } else document.getElementById(key).value = value;
