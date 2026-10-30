@@ -54,7 +54,10 @@
 上海青
 菠菜
 奶白菜
-包菜</textarea></div>
+包菜
+杭白菜
+生菜
+白菜</textarea></div>
       <div><label for="roots">根茎类</label><span class="hint">每餐 1 种，每行一种，至少 2 种。</span><textarea id="roots">土豆
 红薯
 胡萝卜
@@ -69,7 +72,16 @@
 鸡肉
 猪肉</textarea></div>
       <div><label for="extras">其他蔬菜或配菜（可选）</label><span class="hint">每行一种；可写“番茄:牛肉/鳕鱼”“香菇:鸡肉”指定搭配。不写冒号则可灵活搭配，配菜不必每餐都有。</span><textarea id="extras">番茄:牛肉/鳕鱼
-香菇:鸡肉</textarea></div>
+香菇:鸡肉
+豌豆
+毛豆
+菜椒</textarea></div>
+    </div>
+    <h2 style="margin:24px 0 8px">接上周菜单（可选）</h2>
+    <p class="hint" style="min-height:0;margin:0 0 12px">把第一天之前两天的午餐和晚餐食材写进来，用“、”或换行分开。生成时会优先避开前一天吃过的食材，并参考前两天；鳕鱼和三文鱼按鱼类、牛肉饼和牛肉块按牛肉计算。</p>
+    <div class="inputs">
+      <div><label for="prev2">第一天的前两天</label><textarea id="prev2" placeholder="午餐：米饭、西蓝花、土豆、鳕鱼&#10;晚餐：米饭、菠菜、南瓜、鸡肉"></textarea></div>
+      <div><label for="prev1">第一天的前一天</label><textarea id="prev1" placeholder="午餐：米饭、上海青、红薯、牛肉饼&#10;晚餐：米饭、包菜、山药、虾"></textarea></div>
     </div>
     <div class="controls">
       <label for="start" style="margin:0">第一天</label><input id="start" type="date">
@@ -84,7 +96,7 @@
     <p id="summary" class="summary"></p>
     <div class="table-wrap"><table><thead><tr><th>日期</th><th>餐次</th><th>主食</th><th>绿叶菜</th><th>根茎类</th><th>荤菜</th><th>配菜</th></tr></thead><tbody id="menu"></tbody></table></div>
     <div class="controls actions"><button id="regenerate" class="secondary" type="button">换一份搭配</button><button id="copy" class="secondary" type="button">复制菜单</button><button id="print" class="secondary" type="button">打印</button></div>
-    <p class="notes">自动生成时，除只有一种的主食外，同一天两餐的食材不重复、相邻两天尽量错开；同类荤菜按一种食材错开，配菜按荤菜搭配且每天最多安排一餐。手动修改可自由调整。请按宝宝的月龄、过敏情况和进食能力自行确认食材与做法。</p>
+    <p class="notes">自动生成时，除只有一种的主食外，同一天两餐的食材不重复、相邻两天尽量错开，也会参考填写的前两天菜单；同类荤菜按一种食材错开，配菜按荤菜搭配且每天最多安排一餐。手动修改可自由调整。请按宝宝的月龄、过敏情况和进食能力自行确认食材与做法。</p>
   </section>
 
   <script>
@@ -158,22 +170,43 @@
       return data;
     }
 
+    function readPriorMenus(data) {
+      const texts = [document.getElementById("prev2").value, document.getElementById("prev1").value];
+      const history = {};
+      for (const [key, items] of Object.entries(data)) {
+        history[key] = texts.map(text => {
+          const tokens = text.split(/[\s,，、;；:：/／|+＋。]+/).filter(Boolean);
+          const names = new Set(items.filter(item => tokens.includes(item.name)).map(item => key === "proteins" ? item.group || proteinGroup(item.name) : item.name));
+          if (key === "proteins") {
+            for (const token of tokens) {
+              const group = proteinGroup(token);
+              if (["鱼", "虾", "牛肉", "鸡肉", "猪肉"].includes(group)) names.add(group);
+            }
+          }
+          return names;
+        });
+      }
+      return history;
+    }
+
     // Give each available ingredient a place first when possible, then distribute
     // remaining meals according to the selected protein weights.
-    function quotas(items) {
+    function quotas(items, history) {
       const counts = Array(items.length).fill(0);
       const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+      const preferredCaps = items.map(item => history[1].has(item.name) ? Math.floor(DAYS / 2) : Math.ceil(DAYS / 2));
+      const caps = preferredCaps.reduce((sum, cap) => sum + cap, 0) >= MEALS ? preferredCaps : items.map(() => DAYS);
       if (items.length <= MEALS) counts.fill(1);
       let remaining = MEALS - counts.reduce((sum, count) => sum + count, 0);
       while (remaining-- > 0) {
-        const priorities = items.map((item, i) => counts[i] >= DAYS ? -Infinity : (MEALS * item.weight / totalWeight - counts[i]) + Math.random() * 0.3);
+        const priorities = items.map((item, i) => counts[i] >= caps[i] ? -Infinity : (MEALS * item.weight / totalWeight - counts[i]) + Math.random() * 0.3);
         const max = Math.max(...priorities);
         counts[priorities.indexOf(max)]++;
       }
       return counts;
     }
 
-    function attemptSchedule(counts) {
+    function attemptSchedule(counts, items, history) {
       const left = counts.slice();
       const result = [];
       for (let day = 0; day < DAYS; day++) {
@@ -185,9 +218,11 @@
             if (!left[j]) continue;
             const feasible = left.every((count, k) => count - (k === i || k === j ? 1 : 0) <= remainingDays);
             if (!feasible) continue;
-            const previous = day ? [result[2 * day - 2], result[2 * day - 1]] : [];
-            const overlap = Number(previous.includes(i)) + Number(previous.includes(j));
-            const score = overlap * 100 - (left[i] + left[j]) * 2 + Math.random() * 65;
+            const previous = day ? new Set([items[result[2 * day - 2]].name, items[result[2 * day - 1]].name]) : history[1];
+            const twoDaysAgo = day > 1 ? new Set([items[result[2 * day - 4]].name, items[result[2 * day - 3]].name]) : day === 1 ? history[1] : history[0];
+            const overlap = Number(previous.has(items[i].name)) + Number(previous.has(items[j].name));
+            const olderOverlap = Number(twoDaysAgo.has(items[i].name)) + Number(twoDaysAgo.has(items[j].name));
+            const score = overlap * 100 + olderOverlap * 20 - (left[i] + left[j]) * 2 + Math.random() * 65;
             options.push({ i, j, score });
           }
         }
@@ -204,7 +239,7 @@
       return result;
     }
 
-    function scheduleScore(schedule) {
+    function scheduleScore(schedule, items, history) {
       let score = 0;
       const last = new Map();
       for (let day = 0; day < DAYS; day++) {
@@ -212,7 +247,9 @@
         if (day) {
           const previous = [schedule[2 * day - 2], schedule[2 * day - 1]];
           score += current.filter(i => previous.includes(i)).length * 100;
-        }
+        } else score += current.filter(i => history[1].has(items[i].name)).length * 100;
+        const twoDaysAgo = day > 1 ? new Set([items[schedule[2 * day - 4]].name, items[schedule[2 * day - 3]].name]) : day === 1 ? history[1] : history[0];
+        score += current.filter(i => twoDaysAgo.has(items[i].name)).length * 20;
         for (let meal = 0; meal < 2; meal++) {
           const index = 2 * day + meal;
           const prior = last.get(schedule[index]);
@@ -223,22 +260,22 @@
       return score;
     }
 
-    function makeSchedule(items) {
+    function makeSchedule(items, history = [new Set(), new Set()]) {
       if (items.length === 1) return Array(MEALS).fill(items[0].name);
-      const counts = quotas(items);
+      const counts = quotas(items, history);
       let best = null;
       let bestScore = Infinity;
       for (let trial = 0; trial < 3500; trial++) {
-        const candidate = attemptSchedule(counts);
+        const candidate = attemptSchedule(counts, items, history);
         if (!candidate) continue;
-        const score = scheduleScore(candidate);
+        const score = scheduleScore(candidate, items, history);
         if (score < bestScore) { best = candidate; bestScore = score; if (score === 0) break; }
       }
       if (!best) throw new Error("这组食材暂时无法排出每天不重复的菜单，请增加不同食材后重试。");
       return best.map(index => items[index].name);
     }
 
-    function makeProteinSchedule(items) {
+    function makeProteinSchedule(items, history) {
       const families = new Map();
       for (const item of items) {
         const group = item.group || proteinGroup(item.name);
@@ -248,7 +285,7 @@
         family.variants.push({ ...item, used: 0 });
       }
       if (families.size < 2) throw new Error("荤菜至少需要 2 类不同食材；同一种肉的不同做法只算一类。");
-      const familyNames = makeSchedule([...families.values()]);
+      const familyNames = makeSchedule([...families.values()], history);
       return familyNames.map(name => {
         const variants = families.get(name).variants;
         const leastUsed = Math.min(...variants.map(item => item.used / item.weight));
@@ -259,13 +296,13 @@
       });
     }
 
-    function makeMenu(data) {
+    function makeMenu(data, history) {
       const lists = {};
       for (const [key, items] of Object.entries(data)) {
-        if (key !== "extras") lists[key] = key === "proteins" ? makeProteinSchedule(items) : makeSchedule(items);
+        if (key !== "extras") lists[key] = key === "proteins" ? makeProteinSchedule(items, history[key]) : makeSchedule(items, history[key]);
       }
       const menu = Array.from({ length: MEALS }, (_, i) => ({ staples: lists.staples[i], greens: lists.greens[i], roots: lists.roots[i], proteins: lists.proteins[i], extras: "" }));
-      assignExtras(menu, data.extras, data.proteins);
+      assignExtras(menu, data.extras, data.proteins, history.extras);
       return menu;
     }
 
@@ -279,7 +316,7 @@
       return extra.partners.some(partner => protein.includes(partner) || group === partner);
     }
 
-    function assignExtras(menu, extras, proteins) {
+    function assignExtras(menu, extras, proteins, history) {
       const used = new Map(extras.map(item => [item.name, 0]));
       for (let day = 0; day < DAYS; day++) {
         // 配菜是点缀：大约七成的日子安排一餐，每天最多一餐。
@@ -294,8 +331,11 @@
           }
         }
         if (!choices.length) continue;
-        const fewest = Math.min(...choices.map(choice => choice.count));
-        const candidates = choices.filter(choice => choice.count === fewest);
+        const previous = day ? new Set([menu[2 * day - 2].extras, menu[2 * day - 1].extras]) : history[1];
+        const twoDaysAgo = day > 1 ? new Set([menu[2 * day - 4].extras, menu[2 * day - 3].extras]) : day === 1 ? history[1] : history[0];
+        const penalty = choice => choice.count + (previous.has(choice.name) ? 100 : 0) + (twoDaysAgo.has(choice.name) ? 20 : 0);
+        const lowest = Math.min(...choices.map(penalty));
+        const candidates = choices.filter(choice => penalty(choice) === lowest);
         const chosen = candidates[Math.floor(Math.random() * candidates.length)];
         menu[chosen.index].extras = chosen.name;
         used.set(chosen.name, chosen.count + 1);
@@ -335,13 +375,15 @@
     function updateSummary(menu, data, edited) {
       let overlaps = 0;
       const keys = data.staples.length === 1 ? ["greens", "roots", "proteins", "extras"] : ["staples", "greens", "roots", "proteins", "extras"];
+      const history = readPriorMenus(data);
+      const familyKey = (key, value) => key === "proteins" ? proteinFamily(value, data.proteins) : value;
+      overlaps += keys.flatMap(key => [menu[0][key], menu[1][key]].filter(Boolean).map(value => familyKey(key, value)).filter(value => history[key][1].has(value))).length;
       for (let day = 1; day < DAYS; day++) {
-        const familyKey = (key, value) => key === "proteins" ? proteinFamily(value, data.proteins) : value;
         const previous = new Set(keys.flatMap(key => [menu[2 * day - 2][key], menu[2 * day - 1][key]].map(value => `${key}:${familyKey(key, value)}`)));
         overlaps += keys.flatMap(key => [menu[2 * day][key], menu[2 * day + 1][key]].filter(Boolean).map(value => `${key}:${familyKey(key, value)}`)).filter(value => previous.has(value)).length;
       }
       const unused = Object.entries(data).flatMap(([key, items]) => items.filter(item => !menu.some(meal => meal[key] === item.name)).map(item => item.name));
-      document.getElementById("summary").textContent = `${edited ? "已手动修改；" : ""}共 14 餐；相邻两天重复食材 ${overlaps} 次。${unused.length ? `本周未排入：${unused.join("、")}。` : ""}`;
+      document.getElementById("summary").textContent = `${edited ? "已手动修改；" : ""}共 14 餐；相邻两天重复食材（含上周衔接）${overlaps} 次。${unused.length ? `本周未排入：${unused.join("、")}。` : ""}`;
     }
 
     let currentMenu = null;
@@ -351,7 +393,7 @@
     const STORAGE_KEY = "baby-meal-planner-v1";
 
     function saveState() {
-      const inputs = Object.fromEntries(["staples", "greens", "roots", "proteins", "extras"].map(key => [key, document.getElementById(key).value]));
+      const inputs = Object.fromEntries(["staples", "greens", "roots", "proteins", "extras", "prev2", "prev1"].map(key => [key, document.getElementById(key).value]));
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ inputs, start: document.getElementById("start").value, menu: currentMenu, data: currentData, menuStart: currentStart, edited: manuallyEdited }));
       } catch { document.getElementById("message").textContent = "本机保存不可用；关闭页面后修改可能丢失。"; }
@@ -362,9 +404,14 @@
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (!saved || !saved.inputs) return;
         let updatedDefault = false;
+        const previousDefaults = {
+          greens: "西蓝花\n上海青\n菠菜\n奶白菜\n包菜",
+          extras: "番茄:牛肉/鳕鱼\n香菇:鸡肉",
+          proteins: "鳕鱼\n虾\n牛肉\n鸡肉\n猪肉"
+        };
         for (const [key, value] of Object.entries(saved.inputs)) {
-          if (!["staples", "greens", "roots", "proteins", "extras"].includes(key) || typeof value !== "string") continue;
-          if (key === "proteins" && value.replace(/\r\n/g, "\n").trim() === "鳕鱼\n虾\n牛肉\n鸡肉\n猪肉") {
+          if (!["staples", "greens", "roots", "proteins", "extras", "prev2", "prev1"].includes(key) || typeof value !== "string") continue;
+          if (previousDefaults[key] && value.replace(/\r\n/g, "\n").trim() === previousDefaults[key]) {
             document.getElementById(key).value = document.getElementById(key).defaultValue;
             updatedDefault = true;
           } else document.getElementById(key).value = value;
@@ -378,7 +425,7 @@
           render(currentMenu, currentData, currentStart, manuallyEdited);
         }
         if (updatedDefault) {
-          document.getElementById("message").textContent = "默认荤菜已更新，请点“生成一周菜单”按新食材重新排餐。";
+          document.getElementById("message").textContent = "默认食材已更新，请点“生成一周菜单”按新食材重新排餐。";
           saveState();
         }
       } catch { /* 无效或不可用的本机存储不影响生成新菜单 */ }
@@ -390,7 +437,7 @@
       try {
         if (!document.getElementById("start").value) throw new Error("请选择第一天的日期。");
         currentData = readInputs();
-        currentMenu = makeMenu(currentData);
+        currentMenu = makeMenu(currentData, readPriorMenus(currentData));
         currentStart = document.getElementById("start").value;
         manuallyEdited = false;
         render(currentMenu, currentData, currentStart);
@@ -399,7 +446,10 @@
     }
     document.getElementById("generate").addEventListener("click", generate);
     document.getElementById("regenerate").addEventListener("click", generate);
-    for (const key of ["staples", "greens", "roots", "proteins", "extras", "start"]) document.getElementById(key).addEventListener("input", saveState);
+    for (const key of ["staples", "greens", "roots", "proteins", "extras", "prev2", "prev1", "start"]) document.getElementById(key).addEventListener("input", () => {
+      if ((key === "prev2" || key === "prev1") && currentMenu) updateSummary(currentMenu, currentData, manuallyEdited);
+      saveState();
+    });
     document.getElementById("menu").addEventListener("input", event => {
       const cell = event.target.closest("td[data-key]");
       if (!cell || !currentMenu) return;
