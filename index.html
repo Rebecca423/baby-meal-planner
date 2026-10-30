@@ -61,9 +61,11 @@
 山药
 南瓜
 芋头</textarea></div>
-      <div><label for="proteins">荤菜</label><span class="hint">每行一种。牛肉块、牛肉饼会按“牛肉”错开，鸡胸、鸡腿等也按同类计算。可写“牛肉块@牛肉”指定类别，或在末尾写“:数字”调整频率。默认鳕鱼、虾、牛肉偏多，鸡肉偏少。</span><textarea id="proteins">鳕鱼
+      <div><label for="proteins">荤菜</label><span class="hint">每行一种。牛肉块、牛肉饼按牛肉错开；鳕鱼、三文鱼按鱼类错开。可写“牛肉块@牛肉”指定类别，或在末尾写“:数字”调整频率。默认鱼、虾、牛肉偏多，鸡肉偏少。</span><textarea id="proteins">鳕鱼
+三文鱼
 虾
-牛肉
+牛肉饼
+牛肉块
 鸡肉
 猪肉</textarea></div>
       <div><label for="extras">其他蔬菜或配菜（可选）</label><span class="hint">每行一种；可写“番茄:牛肉/鳕鱼”“香菇:鸡肉”指定搭配。不写冒号则可灵活搭配，配菜不必每餐都有。</span><textarea id="extras">番茄:牛肉/鳕鱼
@@ -95,7 +97,7 @@
 
     function proteinGroup(name) {
       const compact = name.replace(/\s+/g, "");
-      if (/鳕鱼/.test(compact)) return "鳕鱼";
+      if (/鱼/.test(compact)) return "鱼";
       if (/虾/.test(compact)) return "虾";
       if (/牛肉|牛腩|牛排|牛里脊/.test(compact)) return "牛肉";
       if (/鸡肉|鸡胸|鸡腿|鸡翅/.test(compact)) return "鸡肉";
@@ -134,7 +136,7 @@
         if (!name) throw new Error("食材名称不能为空。");
         if (seen.has(name)) continue;
         seen.add(name);
-        const preferred = /鳕鱼|虾|牛肉/.test(group) ? 3 : group === "鸡肉" ? 1 : 2;
+        const preferred = ["鱼", "虾", "牛肉"].includes(group) ? 3 : group === "鸡肉" ? 1 : 2;
         entries.push({ name, weight: weight ?? (category === "proteins" ? preferred : 1), partners, group: category === "proteins" ? group : undefined });
       }
       return entries;
@@ -274,7 +276,7 @@
     function extraMatchesProtein(extra, protein, proteins) {
       if (!extra.partners) return true;
       const group = proteinFamily(protein, proteins);
-      return extra.partners.some(partner => protein.includes(partner) || group === partner || group === proteinGroup(partner));
+      return extra.partners.some(partner => protein.includes(partner) || group === partner);
     }
 
     function assignExtras(menu, extras, proteins) {
@@ -359,8 +361,13 @@
       try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (!saved || !saved.inputs) return;
+        let updatedDefault = false;
         for (const [key, value] of Object.entries(saved.inputs)) {
-          if (["staples", "greens", "roots", "proteins", "extras"].includes(key) && typeof value === "string") document.getElementById(key).value = value;
+          if (!["staples", "greens", "roots", "proteins", "extras"].includes(key) || typeof value !== "string") continue;
+          if (key === "proteins" && value.replace(/\r\n/g, "\n").trim() === "鳕鱼\n虾\n牛肉\n鸡肉\n猪肉") {
+            document.getElementById(key).value = document.getElementById(key).defaultValue;
+            updatedDefault = true;
+          } else document.getElementById(key).value = value;
         }
         if (saved.start) document.getElementById("start").value = saved.start;
         if (Array.isArray(saved.menu) && saved.menu.length === MEALS && saved.data && saved.menuStart) {
@@ -369,6 +376,10 @@
           currentStart = saved.menuStart;
           manuallyEdited = Boolean(saved.edited);
           render(currentMenu, currentData, currentStart, manuallyEdited);
+        }
+        if (updatedDefault) {
+          document.getElementById("message").textContent = "默认荤菜已更新，请点“生成一周菜单”按新食材重新排餐。";
+          saveState();
         }
       } catch { /* 无效或不可用的本机存储不影响生成新菜单 */ }
     }
