@@ -394,7 +394,7 @@
     let currentStart = null;
     let manuallyEdited = false;
     const STORAGE_KEY = "baby-meal-planner-v1";
-    const INGREDIENTS_VERSION = 2;
+    const INGREDIENTS_VERSION = 3;
 
     function saveState() {
       const inputs = Object.fromEntries(["staples", "greens", "roots", "proteins", "extras", "prev2", "prev1"].map(key => [key, document.getElementById(key).value]));
@@ -429,7 +429,7 @@
             updatedDefault = true;
           } else document.getElementById(key).value = value;
         }
-        if (saved.ingredientVersion !== INGREDIENTS_VERSION) {
+        if ((saved.ingredientVersion ?? 0) < 2) {
           const proteinsInput = document.getElementById("proteins");
           const withoutTofu = proteinsInput.value.split(/\r?\n/).filter(line => !/^豆腐(?:@豆腐)?(?:\s*[:：]\s*\d+(?:\.\d+)?)?$/.test(line.trim())).join("\n");
           if (withoutTofu !== proteinsInput.value) { proteinsInput.value = withoutTofu; updatedDefault = true; }
@@ -438,6 +438,16 @@
           for (const name of ["豆腐", "茄子"]) {
             if (!existingExtras.has(name)) {
               extrasInput.value = `${extrasInput.value.trimEnd()}\n${name}`.trimStart();
+              updatedDefault = true;
+            }
+          }
+        }
+        if ((saved.ingredientVersion ?? 0) < 3) {
+          const greensInput = document.getElementById("greens");
+          const existingGreens = new Set(greensInput.value.split(/\r?\n/).map(line => line.trim()));
+          for (const name of ["杭白菜", "生菜", "白菜"]) {
+            if (!existingGreens.has(name)) {
+              greensInput.value = `${greensInput.value.trimEnd()}\n${name}`.trimStart();
               updatedDefault = true;
             }
           }
