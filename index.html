@@ -61,7 +61,7 @@
 山药
 南瓜
 芋头</textarea></div>
-      <div><label for="proteins">荤菜</label><span class="hint">每行一种。可在名称后写“:数字”调整出现频率，例如“鳕鱼:3”“鸡肉:1”。默认鳕鱼、虾、牛肉偏多，鸡肉偏少。</span><textarea id="proteins">鳕鱼
+      <div><label for="proteins">荤菜</label><span class="hint">每行一种。牛肉块、牛肉饼会按“牛肉”错开，鸡胸、鸡腿等也按同类计算。可写“牛肉块@牛肉”指定类别，或在末尾写“:数字”调整频率。默认鳕鱼、虾、牛肉偏多，鸡肉偏少。</span><textarea id="proteins">鳕鱼
 虾
 牛肉
 鸡肉
@@ -82,7 +82,7 @@
     <p id="summary" class="summary"></p>
     <div class="table-wrap"><table><thead><tr><th>日期</th><th>餐次</th><th>主食</th><th>绿叶菜</th><th>根茎类</th><th>荤菜</th><th>配菜</th></tr></thead><tbody id="menu"></tbody></table></div>
     <div class="controls actions"><button id="regenerate" class="secondary" type="button">换一份搭配</button><button id="copy" class="secondary" type="button">复制菜单</button><button id="print" class="secondary" type="button">打印</button></div>
-    <p class="notes">自动生成时，除只有一种的主食外，同一天两餐的食材不重复、相邻两天尽量错开；配菜按荤菜搭配且每天最多安排一餐。手动修改可自由调整。请按宝宝的月龄、过敏情况和进食能力自行确认食材与做法。</p>
+    <p class="notes">自动生成时，除只有一种的主食外，同一天两餐的食材不重复、相邻两天尽量错开；同类荤菜按一种食材错开，配菜按荤菜搭配且每天最多安排一餐。手动修改可自由调整。请按宝宝的月龄、过敏情况和进食能力自行确认食材与做法。</p>
   </section>
 
   <script>
@@ -93,6 +93,16 @@
     localToday.setMinutes(localToday.getMinutes() - localToday.getTimezoneOffset());
     document.getElementById("start").value = localToday.toISOString().slice(0, 10);
 
+    function proteinGroup(name) {
+      const compact = name.replace(/\s+/g, "");
+      if (/鳕鱼/.test(compact)) return "鳕鱼";
+      if (/虾/.test(compact)) return "虾";
+      if (/牛肉|牛腩|牛排|牛里脊/.test(compact)) return "牛肉";
+      if (/鸡肉|鸡胸|鸡腿|鸡翅/.test(compact)) return "鸡肉";
+      if (/猪肉|猪排|猪里脊|五花肉/.test(compact)) return "猪肉";
+      return compact;
+    }
+
     function parseList(text, category) {
       const entries = [];
       const seen = new Set();
@@ -102,12 +112,17 @@
         let name = raw;
         let weight;
         let partners = null;
+        let group;
         if (category === "proteins") {
           const match = raw.match(/^(.+?)\s*[:：]\s*(\d+(?:\.\d+)?)$/);
           if (match) { name = match[1].trim(); weight = Number(match[2]); }
           if (raw.includes(":") || raw.includes("：")) {
             if (!match || !Number.isFinite(weight) || weight <= 0 || weight > 20) throw new Error("荤菜权重请写成“鳕鱼:3”，数字需大于 0 且不超过 20。");
           }
+          const groupParts = name.split("@");
+          if (groupParts.length > 2 || (groupParts.length === 2 && groupParts.some(part => !part.trim()))) throw new Error("荤菜类别请写成“牛肉块@牛肉”，名称和类别都不能为空。");
+          name = groupParts[0].trim();
+          group = groupParts[1]?.trim() || proteinGroup(name);
         }
         if (category === "extras" && /[:：]/.test(raw)) {
           const match = raw.match(/^(.+?)\s*[:：]\s*(.+)$/);
@@ -119,8 +134,8 @@
         if (!name) throw new Error("食材名称不能为空。");
         if (seen.has(name)) continue;
         seen.add(name);
-        const preferred = /鳕鱼|虾|牛肉/.test(name) ? 3 : /鸡肉|鸡胸|鸡腿/.test(name) ? 1 : 2;
-        entries.push({ name, weight: weight ?? (category === "proteins" ? preferred : 1), partners });
+        const preferred = /鳕鱼|虾|牛肉/.test(group) ? 3 : group === "鸡肉" ? 1 : 2;
+        entries.push({ name, weight: weight ?? (category === "proteins" ? preferred : 1), partners, group: category === "proteins" ? group : undefined });
       }
       return entries;
     }
@@ -221,22 +236,48 @@
       return best.map(index => items[index].name);
     }
 
+    function makeProteinSchedule(items) {
+      const families = new Map();
+      for (const item of items) {
+        const group = item.group || proteinGroup(item.name);
+        if (!families.has(group)) families.set(group, { name: group, weight: item.weight, variants: [] });
+        const family = families.get(group);
+        family.weight = Math.max(family.weight, item.weight);
+        family.variants.push({ ...item, used: 0 });
+      }
+      if (families.size < 2) throw new Error("荤菜至少需要 2 类不同食材；同一种肉的不同做法只算一类。");
+      const familyNames = makeSchedule([...families.values()]);
+      return familyNames.map(name => {
+        const variants = families.get(name).variants;
+        const leastUsed = Math.min(...variants.map(item => item.used / item.weight));
+        const choices = variants.filter(item => item.used / item.weight === leastUsed);
+        const chosen = choices[Math.floor(Math.random() * choices.length)];
+        chosen.used++;
+        return chosen.name;
+      });
+    }
+
     function makeMenu(data) {
       const lists = {};
       for (const [key, items] of Object.entries(data)) {
-        if (key !== "extras") lists[key] = makeSchedule(items);
+        if (key !== "extras") lists[key] = key === "proteins" ? makeProteinSchedule(items) : makeSchedule(items);
       }
       const menu = Array.from({ length: MEALS }, (_, i) => ({ staples: lists.staples[i], greens: lists.greens[i], roots: lists.roots[i], proteins: lists.proteins[i], extras: "" }));
-      assignExtras(menu, data.extras);
+      assignExtras(menu, data.extras, data.proteins);
       return menu;
     }
 
-    function extraMatchesProtein(extra, protein) {
-      if (!extra.partners) return true;
-      return extra.partners.some(partner => protein.includes(partner) || (partner === "鸡肉" && /鸡胸|鸡腿/.test(protein)));
+    function proteinFamily(name, proteins) {
+      return proteins.find(item => item.name === name)?.group || proteinGroup(name);
     }
 
-    function assignExtras(menu, extras) {
+    function extraMatchesProtein(extra, protein, proteins) {
+      if (!extra.partners) return true;
+      const group = proteinFamily(protein, proteins);
+      return extra.partners.some(partner => protein.includes(partner) || group === partner || group === proteinGroup(partner));
+    }
+
+    function assignExtras(menu, extras, proteins) {
       const used = new Map(extras.map(item => [item.name, 0]));
       for (let day = 0; day < DAYS; day++) {
         // 配菜是点缀：大约七成的日子安排一餐，每天最多一餐。
@@ -245,7 +286,7 @@
         for (let meal = 0; meal < 2; meal++) {
           const index = 2 * day + meal;
           for (const extra of extras) {
-            if (extraMatchesProtein(extra, menu[index].proteins)) {
+            if (extraMatchesProtein(extra, menu[index].proteins, proteins)) {
               choices.push({ index, name: extra.name, count: used.get(extra.name) });
             }
           }
@@ -293,8 +334,9 @@
       let overlaps = 0;
       const keys = data.staples.length === 1 ? ["greens", "roots", "proteins", "extras"] : ["staples", "greens", "roots", "proteins", "extras"];
       for (let day = 1; day < DAYS; day++) {
-        const previous = new Set(keys.flatMap(key => [menu[2 * day - 2][key], menu[2 * day - 1][key]]));
-        overlaps += keys.flatMap(key => [menu[2 * day][key], menu[2 * day + 1][key]]).filter(x => x && previous.has(x)).length;
+        const familyKey = (key, value) => key === "proteins" ? proteinFamily(value, data.proteins) : value;
+        const previous = new Set(keys.flatMap(key => [menu[2 * day - 2][key], menu[2 * day - 1][key]].map(value => `${key}:${familyKey(key, value)}`)));
+        overlaps += keys.flatMap(key => [menu[2 * day][key], menu[2 * day + 1][key]].filter(Boolean).map(value => `${key}:${familyKey(key, value)}`)).filter(value => previous.has(value)).length;
       }
       const unused = Object.entries(data).flatMap(([key, items]) => items.filter(item => !menu.some(meal => meal[key] === item.name)).map(item => item.name));
       document.getElementById("summary").textContent = `${edited ? "已手动修改；" : ""}共 14 餐；相邻两天重复食材 ${overlaps} 次。${unused.length ? `本周未排入：${unused.join("、")}。` : ""}`;
