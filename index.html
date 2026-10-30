@@ -64,19 +64,19 @@
 山药
 南瓜
 芋头</textarea></div>
-      <div><label for="proteins">蛋白质食材</label><span class="hint">每行一种。牛肉块、牛肉饼按牛肉错开；鳕鱼、三文鱼按鱼类错开。可写“牛肉块@牛肉”指定类别，或在末尾写“:数字”调整频率。默认鱼、虾、牛肉偏多，鸡肉偏少。</span><textarea id="proteins">鳕鱼
+      <div><label for="proteins">蛋白质食材</label><span class="hint">每行一种，直接写名称即可。牛肉块和牛肉饼会自动按牛肉错开，鳕鱼和三文鱼会自动按鱼类错开。名称后可写“:数字”调整频率，例如“鳕鱼:3”。</span><textarea id="proteins">鳕鱼
 三文鱼
 虾
 牛肉饼
 牛肉块
 鸡肉
-猪肉
-豆腐</textarea></div>
+猪肉</textarea></div>
       <div><label for="extras">其他蔬菜或配菜（可选）</label><span class="hint">每行一种；可写“番茄:牛肉/鳕鱼”“香菇:鸡肉”指定搭配。不写冒号则可灵活搭配，配菜不必每餐都有。</span><textarea id="extras">番茄:牛肉/鳕鱼
 香菇:鸡肉
 豌豆
 毛豆
 菜椒
+豆腐
 茄子</textarea></div>
     </div>
     <h2 style="margin:24px 0 8px">接上周菜单（可选）</h2>
@@ -394,11 +394,12 @@
     let currentStart = null;
     let manuallyEdited = false;
     const STORAGE_KEY = "baby-meal-planner-v1";
+    const INGREDIENTS_VERSION = 2;
 
     function saveState() {
       const inputs = Object.fromEntries(["staples", "greens", "roots", "proteins", "extras", "prev2", "prev1"].map(key => [key, document.getElementById(key).value]));
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ inputs, start: document.getElementById("start").value, menu: currentMenu, data: currentData, menuStart: currentStart, edited: manuallyEdited }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ inputs, ingredientVersion: INGREDIENTS_VERSION, start: document.getElementById("start").value, menu: currentMenu, data: currentData, menuStart: currentStart, edited: manuallyEdited }));
       } catch { document.getElementById("message").textContent = "本机保存不可用；关闭页面后修改可能丢失。"; }
     }
 
@@ -416,12 +417,30 @@
           proteins: "鳕鱼\n三文鱼\n虾\n牛肉饼\n牛肉块\n鸡肉\n猪肉",
           extras: "番茄:牛肉/鳕鱼\n香菇:鸡肉\n豌豆\n毛豆\n菜椒"
         };
+        const lastDefaults = {
+          proteins: "鳕鱼\n三文鱼\n虾\n牛肉饼\n牛肉块\n鸡肉\n猪肉\n豆腐",
+          extras: "番茄:牛肉/鳕鱼\n香菇:鸡肉\n豌豆\n毛豆\n菜椒\n茄子"
+        };
         for (const [key, value] of Object.entries(saved.inputs)) {
           if (!["staples", "greens", "roots", "proteins", "extras", "prev2", "prev1"].includes(key) || typeof value !== "string") continue;
-          if ((previousDefaults[key] && value.replace(/\r\n/g, "\n").trim() === previousDefaults[key]) || (recentDefaults[key] && value.replace(/\r\n/g, "\n").trim() === recentDefaults[key])) {
+          const normalized = value.replace(/\r\n/g, "\n").trim();
+          if ([previousDefaults[key], recentDefaults[key], lastDefaults[key]].includes(normalized)) {
             document.getElementById(key).value = document.getElementById(key).defaultValue;
             updatedDefault = true;
           } else document.getElementById(key).value = value;
+        }
+        if (saved.ingredientVersion !== INGREDIENTS_VERSION) {
+          const proteinsInput = document.getElementById("proteins");
+          const withoutTofu = proteinsInput.value.split(/\r?\n/).filter(line => !/^豆腐(?:@豆腐)?(?:\s*[:：]\s*\d+(?:\.\d+)?)?$/.test(line.trim())).join("\n");
+          if (withoutTofu !== proteinsInput.value) { proteinsInput.value = withoutTofu; updatedDefault = true; }
+          const extrasInput = document.getElementById("extras");
+          const existingExtras = new Set(extrasInput.value.split(/\r?\n/).map(line => line.split(/[:：]/)[0].trim()));
+          for (const name of ["豆腐", "茄子"]) {
+            if (!existingExtras.has(name)) {
+              extrasInput.value = `${extrasInput.value.trimEnd()}\n${name}`.trimStart();
+              updatedDefault = true;
+            }
+          }
         }
         if (saved.start) document.getElementById("start").value = saved.start;
         if (Array.isArray(saved.menu) && saved.menu.length === MEALS && saved.data && saved.menuStart) {
